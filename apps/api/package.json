@@ -1,0 +1,16 @@
+{
+  "name": "@meu-estoque/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "teste:shared": "tsx src/testeShared.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@meu-estoque/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    // Liga todas as verificações rígidas (null, any implícito etc.)
+    "strict": true,
+    // lista[i] passa a ser "T | undefined": força checar se o item existe
+    "noUncheckedIndexedAccess": true,
+    // Toda função com retorno precisa retornar em todos os caminhos
+    "noImplicitReturns": true,
+    // Impede "case" de switch que cai no próximo sem querer
+    "noFallthroughCasesInSwitch": true,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    // Não verifica os .d.ts de node_modules (mais rápido)
+    "skipLibCheck": true
+  }
+}

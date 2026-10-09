@@ -1,0 +1,23 @@
+{
+  "name": "meu-estoque",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @meu-estoque/shared",
+    "dev:shared": "npm run dev -w @meu-estoque/shared",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9",
+    "typescript": "~6.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

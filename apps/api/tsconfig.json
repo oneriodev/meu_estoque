@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    // A partir do TypeScript 6, os pacotes @types não entram mais
+    // automaticamente: é preciso listar quais ambientes valem aqui.
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
