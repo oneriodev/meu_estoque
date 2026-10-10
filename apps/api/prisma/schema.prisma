@@ -17,6 +17,39 @@ enum PapelUsuario {
   ADMINISTRADOR
 }
 
+/// Mesmos valores de tipoTarefaSchema no packages/shared.
+enum TipoTarefa {
+  VALIDADE
+  REPOSICAO
+  RUPTURA
+  CONTAGEM
+  AUDITORIA_PRECO
+  MANUAL
+}
+
+/// Os 7 estados do ciclo de vida. Mesmos valores de statusTarefaSchema no packages/shared.
+enum StatusTarefa {
+  GERADA
+  ACEITA
+  EM_EXECUCAO
+  CONCLUIDA
+  CANCELADA
+  IMPEDIDA
+  OBSOLETA
+}
+
+/// Quem criou a tarefa: o motor de análise do servidor ou uma pessoa no corredor.
+enum OrigemTarefa {
+  AUTOMATICA
+  MANUAL
+}
+
+/// Unidade de venda: peças (UN) ou peso (KG, produtos de balança).
+enum UnidadeMedida {
+  UN
+  KG
+}
+
 model Loja {
   id           String        @id @default(uuid(7)) @db.Uuid
   /// Código da loja no ERP (ex.: "07")
@@ -26,22 +59,28 @@ model Loja {
   criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   usuarios     UsuarioLoja[]
+  produtos     ProdutoLoja[]
+  lotes        Lote[]
+  tarefas      Tarefa[]
 
   @@map("lojas")
 }
 
 model Usuario {
-  id           String        @id @default(uuid(7)) @db.Uuid
+  id                String         @id @default(uuid(7)) @db.Uuid
   /// Login do operador (ex.: matrícula). LGPD: não pedimos e-mail nem CPF.
-  login        String        @unique
-  nome         String
+  login             String         @unique
+  nome              String
   /// Nunca a senha: só o hash argon2 (Etapa 3)
-  senhaHash    String        @map("senha_hash")
-  papel        PapelUsuario
-  ativo        Boolean       @default(true)
-  criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
-  atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
-  lojas        UsuarioLoja[]
+  senhaHash         String         @map("senha_hash")
+  papel             PapelUsuario
+  ativo             Boolean        @default(true)
+  criadoEm          DateTime       @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm      DateTime       @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  lojas             UsuarioLoja[]
+  tarefasAtribuidas Tarefa[]       @relation("TarefaResponsavel")
+  tarefasCriadas    Tarefa[]       @relation("TarefaCriador")
+  eventosTarefa     TarefaEvento[]
 
   @@map("usuarios")
 }
@@ -56,4 +95,183 @@ model UsuarioLoja {
   @@id([usuarioId, lojaId])
   @@index([lojaId])
   @@map("usuarios_lojas")
+}
+
+// ─── Catálogo (vem do ERP pelo conector, Etapa 4) ─────────────────────────────
+
+/// Categoria do produto. Os parâmetros do motor (ex.: alertas D-30/D-15/D-7) são por categoria.
+model Categoria {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  /// Código da categoria no ERP
+  codigoErp    String      @unique @map("codigo_erp")
+  nome         String
+  /// Hierarquia opcional (ex.: Laticínios > Iogurtes)
+  paiId        String?     @map("pai_id") @db.Uuid
+  pai          Categoria?  @relation("CategoriaHierarquia", fields: [paiId], references: [id])
+  filhas       Categoria[] @relation("CategoriaHierarquia")
+  produtos     Produto[]
+  criadoEm     DateTime    @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime    @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  /// Exclusão lógica: a linha fica, para a sincronização avisar os aparelhos
+  excluidoEm   DateTime?   @map("excluido_em") @db.Timestamptz(3)
+
+  @@index([atualizadoEm])
+  @@map("categorias")
+}
+
+/// Produto do catálogo da rede (o mesmo em todas as lojas).
+model Produto {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  /// Código do produto no ERP (no Consinco, o "seqproduto")
+  codigoErp    String        @unique @map("codigo_erp")
+  descricao    String
+  categoriaId  String        @map("categoria_id") @db.Uuid
+  categoria    Categoria     @relation(fields: [categoriaId], references: [id])
+  unidade      UnidadeMedida @default(UN)
+  /// Se o produto controla lote e validade (hortifruti a granel, por exemplo, não controla)
+  controlaLote Boolean       @default(true) @map("controla_lote")
+  eans         Ean[]
+  lojas        ProdutoLoja[]
+  lotes        Lote[]
+  tarefas      Tarefa[]
+  criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  excluidoEm   DateTime?     @map("excluido_em") @db.Timestamptz(3)
+
+  @@index([categoriaId])
+  @@index([atualizadoEm])
+  @@map("produtos")
+}
+
+/// Código de barras. Um produto pode ter vários: unidade, caixa, fardo...
+model Ean {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  /// GTIN já validado pelo gtinSchema do packages/shared
+  codigo              String    @unique
+  produtoId           String    @map("produto_id") @db.Uuid
+  produto             Produto   @relation(fields: [produtoId], references: [id])
+  /// Quantas unidades este código representa (1 = unidade, 12 = caixa com 12)
+  quantidadeEmbalagem Int       @default(1) @map("quantidade_embalagem")
+  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  excluidoEm          DateTime? @map("excluido_em") @db.Timestamptz(3)
+
+  @@index([produtoId])
+  @@index([atualizadoEm])
+  @@map("eans")
+}
+
+/// O produto em uma loja: preço, saldo e endereço mudam de loja para loja.
+model ProdutoLoja {
+  produtoId    String   @map("produto_id") @db.Uuid
+  lojaId       String   @map("loja_id") @db.Uuid
+  produto      Produto  @relation(fields: [produtoId], references: [id])
+  loja         Loja     @relation(fields: [lojaId], references: [id])
+  /// Dinheiro nunca em float: Decimal guarda centavos exatos
+  preco        Decimal  @db.Decimal(12, 2)
+  /// Saldo informado pelo ERP. Nunca editado no app (regra do offline-first).
+  /// Três casas decimais para produtos vendidos por peso.
+  saldo        Decimal  @default(0) @db.Decimal(14, 3)
+  /// Endereço na loja (ex.: "C04-G12-P2"), quando o ERP informa
+  endereco     String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  @@id([produtoId, lojaId])
+  @@index([lojaId, atualizadoEm])
+  @@map("produtos_lojas")
+}
+
+// ─── Validades ──────────────────────────────────────────────────────────────
+
+/// Lote com validade em uma loja. O middleware é a fonte da verdade dos lotes.
+model Lote {
+  /// Pode ser gerado no aparelho: o operador cadastra lotes offline
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  produtoId          String    @map("produto_id") @db.Uuid
+  lojaId             String    @map("loja_id") @db.Uuid
+  produto            Produto   @relation(fields: [produtoId], references: [id])
+  loja               Loja      @relation(fields: [lojaId], references: [id])
+  /// Código do lote impresso na embalagem (AI 10 do GS1-128). Vazio se não houver.
+  codigo             String    @default("")
+  /// Só a data: validade não tem hora nem fuso
+  validade           DateTime  @db.Date
+  /// Estimativa calculada no servidor (cadastros, baixa FEFO pelas vendas, conferências)
+  quantidadeEstimada Decimal   @default(0) @map("quantidade_estimada") @db.Decimal(14, 3)
+  tarefas            Tarefa[]
+  criadoEm           DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  excluidoEm         DateTime? @map("excluido_em") @db.Timestamptz(3)
+
+  @@unique([lojaId, produtoId, codigo, validade])
+  // Consulta mais comum do FEFO: "lotes desta loja que vencem até tal data"
+  @@index([lojaId, validade])
+  @@index([lojaId, atualizadoEm])
+  @@map("lotes")
+}
+
+// ─── Motor de tarefas ───────────────────────────────────────────────────────
+
+/// Estado ATUAL da tarefa. O histórico completo fica em TarefaEvento.
+model Tarefa {
+  /// Pode ser gerado no aparelho (tarefa manual criada offline)
+  id            String         @id @default(uuid(7)) @db.Uuid
+  lojaId        String         @map("loja_id") @db.Uuid
+  loja          Loja           @relation(fields: [lojaId], references: [id])
+  tipo          TipoTarefa
+  status        StatusTarefa   @default(GERADA)
+  origem        OrigemTarefa   @default(AUTOMATICA)
+  /// Quanto maior, mais alto na fila (o motor calcula pelo impacto em R$)
+  prioridade    Int            @default(0)
+  titulo        String
+  /// O problema apontado (ex.: "2 un. vencem na gôndola em 7 dias")
+  descricao     String?
+  produtoId     String?        @map("produto_id") @db.Uuid
+  produto       Produto?       @relation(fields: [produtoId], references: [id])
+  loteId        String?        @map("lote_id") @db.Uuid
+  lote          Lote?          @relation(fields: [loteId], references: [id])
+  responsavelId String?        @map("responsavel_id") @db.Uuid
+  responsavel   Usuario?       @relation("TarefaResponsavel", fields: [responsavelId], references: [id])
+  criadoPorId   String?        @map("criado_por_id") @db.Uuid
+  criadoPor     Usuario?       @relation("TarefaCriador", fields: [criadoPorId], references: [id])
+  prazo         DateTime?      @db.Timestamptz(3)
+  /// Dados específicos de cada tipo (ex.: preço lido na etiqueta), validados com Zod
+  dados         Json?
+  eventos       TarefaEvento[]
+  criadoEm      DateTime       @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm  DateTime       @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  // A fila da loja: "tarefas desta loja neste status"
+  @@index([lojaId, status])
+  @@index([responsavelId, status])
+  @@index([lojaId, atualizadoEm])
+  @@map("tarefas")
+}
+
+/// Cada mudança de estado de uma tarefa. Imutável: só inserção, nunca UPDATE ou DELETE.
+model TarefaEvento {
+  /// UUID gerado NO APARELHO: é a chave de idempotência.
+  /// Se o mesmo evento chegar duas vezes (reenvio da outbox), o segundo é ignorado.
+  id                   String        @id @db.Uuid
+  tarefaId             String        @map("tarefa_id") @db.Uuid
+  tarefa               Tarefa        @relation(fields: [tarefaId], references: [id])
+  statusAnterior       StatusTarefa? @map("status_anterior")
+  statusNovo           StatusTarefa  @map("status_novo")
+  usuarioId            String?       @map("usuario_id") @db.Uuid
+  usuario              Usuario?      @relation(fields: [usuarioId], references: [id])
+  /// Obrigatório para cancelamento e impedimento (regra validada na API)
+  motivo               String?
+  /// Identificação do aparelho que gerou o evento
+  dispositivoId        String?       @map("dispositivo_id")
+  /// Contador sequencial por aparelho: ordena eventos mesmo com relógio errado
+  sequenciaDispositivo Int?          @map("sequencia_dispositivo")
+  /// Horário do aparelho quando o fato aconteceu
+  ocorridoEm           DateTime      @map("ocorrido_em") @db.Timestamptz(3)
+  /// Horário em que o servidor recebeu
+  recebidoEm           DateTime      @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  dados                Json?
+
+  @@index([tarefaId, ocorridoEm])
+  @@map("tarefa_eventos")
 }
