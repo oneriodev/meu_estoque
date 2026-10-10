@@ -1,0 +1,53 @@
+# Infraestrutura de DESENVOLVIMENTO do meu_estoque.
+# Valores sensíveis vêm do arquivo .env (que não vai para o Git).
+name: meu_estoque
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # 127.0.0.1 = acessível só desta máquina, nunca pela rede (ver explicação)
+      - '127.0.0.1:${POSTGRES_PORT}:5432'
+    volumes:
+      # No PostgreSQL 18 o volume é montado em /var/lib/postgresql
+      # (nas versões antigas era /var/lib/postgresql/data)
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # $$ = "não substitua agora": a variável é lida dentro do container.
+    # noeviction: o Redis nunca apaga dados para liberar memória
+    # (sem isso, jobs da fila poderiam sumir em silêncio).
+    # appendonly: grava em disco, para os jobs sobreviverem a um reinício.
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --maxmemory-policy noeviction
+    ports:
+      - '127.0.0.1:${REDIS_PORT}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+
+volumes:
+  pgdata:
+  redisdata:
