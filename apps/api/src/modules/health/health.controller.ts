@@ -1,5 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { HealthService, type HealthStatus } from './health.service.js';
 
 @ApiTags('health') // agrupa as rotas no Swagger
@@ -9,9 +14,10 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Informa se a API está no ar' })
-  @ApiOkResponse({ description: 'API funcionando' })
-  check(): HealthStatus {
+  @ApiOperation({ summary: 'Informa se a API e o banco de dados estão no ar' })
+  @ApiOkResponse({ description: 'API e banco funcionando' })
+  @ApiServiceUnavailableResponse({ description: 'Banco de dados fora do ar' })
+  check(): Promise<HealthStatus> {
     return this.healthService.check();
   }
 }

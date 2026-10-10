@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { envSchema } from './config/env.schema.js';
+import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 
 @Module({
@@ -13,6 +14,7 @@ import { HealthModule } from './modules/health/health.module.js';
       ignoreEnvFile: process.env.NODE_ENV === 'production',
       validationSchema: envSchema,
     }),
+    DatabaseModule,
     HealthModule,
   ],
 })

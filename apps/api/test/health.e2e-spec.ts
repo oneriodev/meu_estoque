@@ -21,9 +21,11 @@ describe('Health (e2e)', () => {
     await app.close();
   });
 
+  // Este teste precisa do PostgreSQL rodando (docker compose up -d)
   it('GET /api/v1/health responde ok', async () => {
     const resposta = await request(app.getHttpServer()).get('/api/v1/health').expect(200);
     expect(resposta.body.status).toBe('ok');
+    expect(resposta.body.banco).toBe('ok');
   });
 
   it('envia cabeçalhos de segurança do helmet', async () => {

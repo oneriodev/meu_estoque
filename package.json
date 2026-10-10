@@ -12,7 +12,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dev:api": "npm run start:dev -w @meu-estoque/api"
+    "dev:api": "npm run start:dev -w @meu-estoque/api",
+    "db:migrate": "npm run db:migrate -w @meu-estoque/api --",
+    "db:studio": "npm run db:studio -w @meu-estoque/api"
   },
   "devDependencies": {
     "prettier": "^3.9.9",
@@ -20,6 +22,8 @@
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "@scarf/scarf": false
+    "@scarf/scarf": false,
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true
   }
 }

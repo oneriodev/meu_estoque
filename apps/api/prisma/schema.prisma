@@ -1,0 +1,59 @@
+// Schema do banco do Meu Estoque.
+// Convenção: nomes em camelCase no código e snake_case no banco (@map / @@map).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Perfis de acesso. Os valores são os mesmos de papelUsuarioSchema no packages/shared.
+enum PapelUsuario {
+  OPERADOR
+  SUPERVISOR
+  ADMINISTRADOR
+}
+
+model Loja {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  /// Código da loja no ERP (ex.: "07")
+  codigo       String        @unique
+  nome         String
+  ativa        Boolean       @default(true)
+  criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  usuarios     UsuarioLoja[]
+
+  @@map("lojas")
+}
+
+model Usuario {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  /// Login do operador (ex.: matrícula). LGPD: não pedimos e-mail nem CPF.
+  login        String        @unique
+  nome         String
+  /// Nunca a senha: só o hash argon2 (Etapa 3)
+  senhaHash    String        @map("senha_hash")
+  papel        PapelUsuario
+  ativo        Boolean       @default(true)
+  criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  lojas        UsuarioLoja[]
+
+  @@map("usuarios")
+}
+
+/// Em quais lojas cada usuário pode atuar (escopo por loja).
+model UsuarioLoja {
+  usuarioId String  @map("usuario_id") @db.Uuid
+  lojaId    String  @map("loja_id") @db.Uuid
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  loja      Loja    @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, lojaId])
+  @@index([lojaId])
+  @@map("usuarios_lojas")
+}
