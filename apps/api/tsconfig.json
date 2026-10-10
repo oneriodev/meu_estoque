@@ -1,12 +1,27 @@
 {
+  // Herda strict, noUncheckedIndexedAccess etc. da raiz
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": true,
-    // A partir do TypeScript 6, os pacotes @types não entram mais
-    // automaticamente: é preciso listar quais ambientes valem aqui.
-    "types": ["node"]
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    // Decorators (@Module, @Controller, @Injectable...) e os metadados
+    // de tipo que o Nest usa para a injeção de dependência
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    // O Nest preenche as propriedades das classes por injeção,
+    // então o TS não deve exigir que elas sejam inicializadas no construtor
+    "strictPropertyInitialization": false,
+
+    "outDir": "./dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "removeComments": true,
+    "incremental": true,
+    "types": ["vitest/globals", "node"]
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts", "vitest.config.e2e.ts"]
 }

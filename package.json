@@ -11,7 +11,8 @@
     "dev:shared": "npm run dev -w @meu-estoque/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "dev:api": "npm run start:dev -w @meu-estoque/api"
   },
   "devDependencies": {
     "prettier": "^3.9.9",
