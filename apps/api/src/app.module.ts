@@ -10,6 +10,7 @@ import { ErpModule } from './connectors/erp/erp.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { IntegracaoModule } from './modules/integracao/integracao.module.js';
 import { LojasModule } from './modules/lojas/lojas.module.js';
 
 @Module({
@@ -25,12 +26,11 @@ import { LojasModule } from './modules/lojas/lojas.module.js';
     // Limite geral: 100 requisições por minuto por IP (o login tem um limite próprio, menor)
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
     DatabaseModule,
-    DatabaseModule,
-    ErpModule,
-    HealthModule,
+    ErpModule, // o conector de ERP escolhido pela variável ERP_CONECTOR
     HealthModule,
     AuthModule,
     LojasModule,
+    IntegracaoModule,
   ],
   providers: [
     // Guards globais, executados nesta ordem:
