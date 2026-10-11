@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -10,8 +11,11 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import {
   loginRequestSchema,
+  refreshRequestSchema,
   type LoginRequest,
   type LoginResponse,
+  type RefreshRequest,
+  type TokensResponse,
   type UsuarioSessao,
 } from '@meu-estoque/shared';
 import { Public } from '../../common/auth/public.decorator.js';
@@ -29,13 +33,35 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK) // login não cria nada, então 200 em vez do 201 padrão do POST
-  @ApiOperation({ summary: 'Entra com login e senha e recebe o token de acesso' })
+  @ApiOperation({ summary: 'Entra com login e senha e recebe os tokens' })
   @ApiOkResponse({ description: 'Login feito' })
   @ApiUnauthorizedResponse({ description: 'Login ou senha inválidos' })
   @ApiTooManyRequestsResponse({ description: 'Muitas tentativas. Aguarde um minuto.' })
   login(@Body({ schema: loginRequestSchema }) dados: LoginRequest): Promise<LoginResponse> {
     // Quando chega aqui, o corpo já foi validado e transformado pelo Zod
     return this.authService.login(dados);
+  }
+
+  // Público: quando o app renova, o token de acesso normalmente já venceu
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Troca o refresh token por um par novo de tokens' })
+  @ApiOkResponse({ description: 'Tokens renovados. O refresh token antigo deixa de valer.' })
+  @ApiUnauthorizedResponse({ description: 'Sessão inválida, expirada ou encerrada' })
+  renovar(@Body({ schema: refreshRequestSchema }) dados: RefreshRequest): Promise<TokensResponse> {
+    return this.authService.renovar(dados.refreshToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT) // 204: deu certo e não há nada para devolver
+  @ApiOperation({ summary: 'Encerra a sessão deste aparelho' })
+  @ApiNoContentResponse({ description: 'Sessão encerrada' })
+  logout(@Body({ schema: refreshRequestSchema }) dados: RefreshRequest): Promise<void> {
+    return this.authService.logout(dados.refreshToken);
   }
 
   @Get('me')

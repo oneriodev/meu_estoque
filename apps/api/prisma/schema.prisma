@@ -81,6 +81,7 @@ model Usuario {
   tarefasAtribuidas Tarefa[]       @relation("TarefaResponsavel")
   tarefasCriadas    Tarefa[]       @relation("TarefaCriador")
   eventosTarefa     TarefaEvento[]
+  sessoes           SessaoRefresh[]
 
   @@map("usuarios")
 }
@@ -95,6 +96,27 @@ model UsuarioLoja {
   @@id([usuarioId, lojaId])
   @@index([lojaId])
   @@map("usuarios_lojas")
+}
+
+/// Sessão de login de um aparelho. Guarda o refresh token (só o hash) e permite revogá-lo.
+model SessaoRefresh {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  usuarioId   String    @map("usuario_id") @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  /// Todas as renovações de um mesmo login formam uma "família"
+  familiaId   String    @map("familia_id") @db.Uuid
+  /// SHA-256 do refresh token. O token em si nunca é guardado.
+  tokenHash   String    @unique @map("token_hash")
+  /// Nome do aparelho informado no login (ex.: "Tablet corredor 4")
+  dispositivo String?
+  expiraEm    DateTime  @map("expira_em") @db.Timestamptz(3)
+  /// Preenchido quando o token é trocado (rotação), no logout ou por segurança
+  revogadoEm  DateTime? @map("revogado_em") @db.Timestamptz(3)
+  criadoEm    DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([usuarioId])
+  @@index([familiaId])
+  @@map("sessoes_refresh")
 }
 
 // ─── Catálogo (vem do ERP pelo conector, Etapa 4) ─────────────────────────────

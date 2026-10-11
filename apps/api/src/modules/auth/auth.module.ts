@@ -5,6 +5,7 @@ import type { Env } from '../../config/env.schema.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { SenhaService } from './senha.service.js';
+import { SessaoService } from './sessao.service.js';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { SenhaService } from './senha.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, SenhaService],
+  providers: [AuthService, SenhaService, SessaoService],
   exports: [SenhaService],
 })
 export class AuthModule {}

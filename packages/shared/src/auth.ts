@@ -8,8 +8,25 @@ export const loginRequestSchema = z.object({
   // O limite de tamanho protege o servidor: calcular o hash de um texto
   // gigante de propósito seria uma forma de travar a API
   senha: z.string().min(1, 'Informe a senha').max(128),
+  // Nome do aparelho, para o usuário (ou o gestor) reconhecer a sessão depois
+  dispositivo: z.string().trim().max(100).optional(),
 });
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
+
+/** Corpo do refresh e do logout. */
+export const refreshRequestSchema = z.object({
+  refreshToken: z.string().min(20).max(200),
+});
+export type RefreshRequest = z.infer<typeof refreshRequestSchema>;
+
+/** Par de tokens devolvido no login e em cada renovação. */
+export const tokensResponseSchema = z.object({
+  accessToken: z.string(),
+  expiraEmSegundos: z.number().int().positive(),
+  refreshToken: z.string(),
+  refreshExpiraEmSegundos: z.number().int().positive(),
+});
+export type TokensResponse = z.infer<typeof tokensResponseSchema>;
 
 /** Loja que o usuário pode acessar. */
 export const lojaResumoSchema = z.object({
@@ -28,10 +45,8 @@ export const usuarioSessaoSchema = z.object({
 });
 export type UsuarioSessao = z.infer<typeof usuarioSessaoSchema>;
 
-/** Resposta do login. */
-export const loginResponseSchema = z.object({
-  accessToken: z.string(),
-  expiraEmSegundos: z.number().int().positive(),
+/** Resposta do login: os tokens mais os dados do usuário. */
+export const loginResponseSchema = tokensResponseSchema.extend({
   usuario: usuarioSessaoSchema,
 });
 export type LoginResponse = z.infer<typeof loginResponseSchema>;

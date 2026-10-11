@@ -21,6 +21,9 @@ export const envSchema = z.object({
   // Validade do token de acesso. Curta de propósito: se vazar, expira logo.
   JWT_ACCESS_TTL_SEGUNDOS: z.coerce.number().int().min(60).max(3600).default(900),
 
+  // Validade do refresh token: por quantos dias o aparelho fica logado sem pedir a senha
+  JWT_REFRESH_TTL_DIAS: z.coerce.number().int().min(1).max(90).default(30),
+
   // Origens do navegador que podem chamar a API (o painel web, no futuro).
   // Formato no .env: http://localhost:3001,https://painel.exemplo.com
   // Vazio = nenhum site pode chamar a API pelo navegador.

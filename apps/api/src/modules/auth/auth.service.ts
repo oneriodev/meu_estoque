@@ -1,11 +1,18 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import type { LoginRequest, LoginResponse, UsuarioSessao } from '@meu-estoque/shared';
+import type {
+  LoginRequest,
+  LoginResponse,
+  PapelUsuario,
+  TokensResponse,
+  UsuarioSessao,
+} from '@meu-estoque/shared';
 import type { PayloadToken } from '../../common/auth/usuario-autenticado.js';
 import type { Env } from '../../config/env.schema.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { SenhaService } from './senha.service.js';
+import { SessaoService } from './sessao.service.js';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +21,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly senhaService: SenhaService,
+    private readonly sessaoService: SessaoService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<Env, true>,
   ) {}
@@ -35,14 +43,31 @@ export class AuthService {
       throw new UnauthorizedException('Login ou senha inválidos');
     }
 
-    const payload: PayloadToken = { sub: usuario.id, papel: usuario.papel };
-    const accessToken = await this.jwtService.signAsync(payload);
+    const refresh = await this.sessaoService.criar(usuario.id, dados.dispositivo);
 
     return {
-      accessToken,
-      expiraEmSegundos: this.config.get('JWT_ACCESS_TTL_SEGUNDOS', { infer: true }),
+      ...(await this.gerarAccessToken(usuario.id, usuario.papel)),
+      ...refresh,
       usuario: await this.carregarSessao(usuario.id),
     };
+  }
+
+  /** Troca o refresh token por um par novo, sem pedir a senha. */
+  async renovar(refreshToken: string): Promise<TokensResponse> {
+    const { usuarioId, ...refresh } = await this.sessaoService.renovar(refreshToken);
+
+    // O perfil é lido de novo do banco: se o gestor mudou o papel do usuário,
+    // a mudança vale a partir da próxima renovação (no máximo 15 minutos)
+    const usuario = await this.prisma.usuario.findUniqueOrThrow({
+      where: { id: usuarioId },
+      select: { papel: true },
+    });
+
+    return { ...(await this.gerarAccessToken(usuarioId, usuario.papel)), ...refresh };
+  }
+
+  logout(refreshToken: string): Promise<void> {
+    return this.sessaoService.encerrar(refreshToken);
   }
 
   /** Dados do usuário e das lojas que ele pode acessar. */
@@ -66,6 +91,17 @@ export class AuthService {
       nome: usuario.nome,
       papel: usuario.papel,
       lojas: lojas.map(({ id, codigo, nome }) => ({ id, codigo, nome })),
+    };
+  }
+
+  private async gerarAccessToken(
+    usuarioId: string,
+    papel: PapelUsuario,
+  ): Promise<{ accessToken: string; expiraEmSegundos: number }> {
+    const payload: PayloadToken = { sub: usuarioId, papel };
+    return {
+      accessToken: await this.jwtService.signAsync(payload),
+      expiraEmSegundos: this.config.get('JWT_ACCESS_TTL_SEGUNDOS', { infer: true }),
     };
   }
 }
