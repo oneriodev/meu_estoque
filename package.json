@@ -26,5 +26,9 @@
     "@scarf/scarf": false,
     "prisma@7.10.0": true,
     "@prisma/engines@7.10.0": true
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
