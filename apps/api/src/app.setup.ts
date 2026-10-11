@@ -1,4 +1,8 @@
-import { type INestApplication, VersioningType } from '@nestjs/common';
+import {
+  type INestApplication,
+  StandardSchemaValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import type { Env } from './config/env.schema.js';
@@ -17,6 +21,9 @@ export function configureApp(app: INestApplication): void {
   // CORS só vale para navegadores. O app mobile não passa por ele.
   const origens = config.get('CORS_ORIGINS', { infer: true });
   app.enableCors({ origin: origens.length > 0 ? origens : false });
+
+  // Valida corpo, query e parâmetros que tiverem um schema Zod declarado na rota
+  app.useGlobalPipes(new StandardSchemaValidationPipe());
 
   // Todas as rotas ficam em /api/v1/...
   app.setGlobalPrefix('api');

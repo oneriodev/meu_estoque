@@ -5,8 +5,10 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../../common/auth/public.decorator.js';
 import { HealthService, type HealthStatus } from './health.service.js';
 
+@Public() // o monitoramento precisa consultar sem login
 @ApiTags('health') // agrupa as rotas no Swagger
 @Controller('health') // rota final: /api/v1/health
 export class HealthController {
