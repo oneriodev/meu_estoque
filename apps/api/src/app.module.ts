@@ -6,6 +6,7 @@ import { EscopoLojaGuard } from './common/auth/escopo-loja.guard.js';
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard.js';
 import { PerfisGuard } from './common/auth/perfis.guard.js';
 import { envSchema } from './config/env.schema.js';
+import { ErpModule } from './connectors/erp/erp.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -24,6 +25,9 @@ import { LojasModule } from './modules/lojas/lojas.module.js';
     // Limite geral: 100 requisições por minuto por IP (o login tem um limite próprio, menor)
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
     DatabaseModule,
+    DatabaseModule,
+    ErpModule,
+    HealthModule,
     HealthModule,
     AuthModule,
     LojasModule,

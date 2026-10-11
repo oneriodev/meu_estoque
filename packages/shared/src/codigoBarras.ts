@@ -1,22 +1,29 @@
 import { z } from 'zod';
 
 /**
- * Confere o dígito verificador de um código GTIN.
- * Regra GS1: da direita para a esquerda (sem contar o verificador),
- * os dígitos recebem pesos 3, 1, 3, 1... O verificador é o número
- * que completa a soma até o próximo múltiplo de 10.
+ * Calcula o dígito verificador de um código GTIN (sem o dígito).
+ * Regra GS1: da direita para a esquerda, os dígitos recebem pesos 3, 1, 3, 1...
+ * O verificador é o número que completa a soma até o próximo múltiplo de 10.
  */
-export function digitoVerificadorValido(codigo: string): boolean {
-  if (!/^\d+$/.test(codigo)) return false;
+export function calcularDigitoVerificador(semDigito: string): number {
+  if (!/^\d+$/.test(semDigito)) {
+    throw new Error('O código deve conter apenas dígitos');
+  }
 
-  const digitos = codigo.split('').map(Number);
-  const verificador = digitos.pop(); // tipo: number | undefined
-
-  const soma = digitos
+  const soma = semDigito
+    .split('')
+    .map(Number)
     .reverse()
     .reduce((acumulado, digito, i) => acumulado + digito * (i % 2 === 0 ? 3 : 1), 0);
 
-  return (10 - (soma % 10)) % 10 === verificador;
+  return (10 - (soma % 10)) % 10;
+}
+
+/** Confere o dígito verificador de um código GTIN completo. */
+export function digitoVerificadorValido(codigo: string): boolean {
+  if (!/^\d{2,}$/.test(codigo)) return false;
+  const verificador = Number(codigo.slice(-1));
+  return calcularDigitoVerificador(codigo.slice(0, -1)) === verificador;
 }
 
 export const gtinSchema = z
