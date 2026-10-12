@@ -17,7 +17,8 @@
     "db:generate": "npm run prisma:generate -w @meu-estoque/api",
     "db:studio": "npm run db:studio -w @meu-estoque/api",
     "db:seed": "npm run db:seed -w @meu-estoque/api",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
     "patch-package": "^8.0.1",

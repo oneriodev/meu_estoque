@@ -8,16 +8,29 @@
     "scheme": "meuestoque",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "io.github.oneriodev.meuestoque"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F3F5F7",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "monochromeImage": "./assets/images/android-icon-monochrome.png",
+        "predictiveBackGestureEnabled": false,
+        "package": "io.github.oneriodev.meuestoque",
+        "blockedPermissions": [
+          "android.permission.RECORD_AUDIO",
+          "android.permission.READ_EXTERNAL_STORAGE",
+          "android.permission.WRITE_EXTERNAL_STORAGE",
+          "android.permission.SYSTEM_ALERT_WINDOW"
+        ]
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "io.github.oneriodev.meuestoque"
     },
     "web": {
       "output": "single",
@@ -34,7 +47,15 @@
         }
       ],
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Meu Estoque usa a câmera para ler códigos de barras e fotografar a execução das tarefas.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -3,3 +3,4 @@ export * from './enums.js';
 export * from './codigoBarras.js';
 export * from './auth.js';
 export * from './sincronizacao.js';
+export * from './leituraCodigo.js';
