@@ -5,3 +5,4 @@ package-lock.json
 apps/api/src/generated/
 apps/mobile/expo-env.d.ts
 apps/mobile/assets/
+apps/mobile/drizzle/

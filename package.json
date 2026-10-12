@@ -14,16 +14,20 @@
     "format:check": "prettier --check .",
     "dev:api": "npm run start:dev -w @meu-estoque/api",
     "db:migrate": "npm run db:migrate -w @meu-estoque/api --",
+    "db:generate": "npm run prisma:generate -w @meu-estoque/api",
     "db:studio": "npm run db:studio -w @meu-estoque/api",
     "db:seed": "npm run db:seed -w @meu-estoque/api",
-    "db:generate": "npm run prisma:generate -w @meu-estoque/api"
+    "postinstall": "patch-package"
   },
   "devDependencies": {
+    "patch-package": "^8.0.1",
     "prettier": "^3.9.9",
     "typescript": "~6.0"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.18.20": true,
     "@scarf/scarf": false,
     "prisma@7.10.0": true,
     "@prisma/engines@7.10.0": true

@@ -1,8 +1,11 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { abrirBancoLocal } from '@/db/cliente';
 import { useSessaoStore } from '@/stores/sessaoStore';
+import { cores } from '@/theme/cores';
 
 // Mantém a tela de abertura até sabermos se há sessão salva (evita "piscar" o login)
 void SplashScreen.preventAutoHideAsync();
@@ -17,16 +20,40 @@ void SplashScreen.preventAutoHideAsync();
 export default function LayoutRaiz() {
   const situacao = useSessaoStore((s) => s.situacao);
   const temLoja = useSessaoStore((s) => s.loja !== null);
+  const [banco, setBanco] = useState<{ pronto: boolean; erro?: Error }>({ pronto: false });
+
+  // Abre o banco local e aplica as migrações (em paralelo com a restauração da sessão)
+  useEffect(() => {
+    abrirBancoLocal().then(
+      () => setBanco({ pronto: true }),
+      (erro: unknown) =>
+        setBanco({ pronto: false, erro: erro instanceof Error ? erro : new Error(String(erro)) }),
+    );
+  }, []);
 
   useEffect(() => {
     void useSessaoStore.getState().restaurar();
   }, []);
 
+  const pronto = situacao !== 'iniciando' && (banco.pronto || banco.erro !== undefined);
   useEffect(() => {
-    if (situacao !== 'iniciando') SplashScreen.hide();
-  }, [situacao]);
+    if (pronto) SplashScreen.hide();
+  }, [pronto]);
 
-  if (situacao === 'iniciando') return null;
+  if (banco.erro) {
+    // Raro (ex.: aparelho sem espaço). Sem banco local o app não funciona offline.
+    return (
+      <View style={estilos.erro}>
+        <Text style={estilos.tituloErro}>Não foi possível preparar o banco do aparelho</Text>
+        <Text style={estilos.textoErro}>{banco.erro.message}</Text>
+        {/* O Drizzle guarda o erro original do SQLite em "cause" */}
+        {banco.erro.cause instanceof Error ? (
+          <Text style={estilos.textoErro}>{banco.erro.cause.message}</Text>
+        ) : null}
+      </View>
+    );
+  }
+  if (!pronto) return null;
 
   const logado = situacao === 'logado';
 
@@ -47,3 +74,9 @@ export default function LayoutRaiz() {
     </>
   );
 }
+
+const estilos = StyleSheet.create({
+  erro: { flex: 1, justifyContent: 'center', padding: 24, gap: 12, backgroundColor: cores.fundo },
+  tituloErro: { fontSize: 18, fontWeight: '700', color: cores.erro },
+  textoErro: { fontSize: 14, color: cores.texto },
+});

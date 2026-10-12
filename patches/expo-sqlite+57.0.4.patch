@@ -1,0 +1,26 @@
+diff --git a/node_modules/expo-sqlite/web/WorkerChannel.ts b/node_modules/expo-sqlite/web/WorkerChannel.ts
+index 7fba380..fa3e452 100644
+--- a/node_modules/expo-sqlite/web/WorkerChannel.ts
++++ b/node_modules/expo-sqlite/web/WorkerChannel.ts
+@@ -40,7 +40,9 @@ export function sendWorkerResult({
+     const resultJson = error != null ? serialize({ error }) : serialize({ result });
+     const resultBytes = new TextEncoder().encode(resultJson);
+     const length = resultBytes.length;
+-    resultArray.set(new Uint32Array([length]), 0);
++    // Patch Meu Estoque: o original copiava o número como 1 byte (length % 256),
++    // truncando qualquer resultado com mais de 255 bytes. Grava os 4 bytes do tamanho.
++    new Uint32Array(resultBuffer, 0, 1)[0] = length;
+     resultArray.set(resultBytes, 4);
+     Atomics.store(lock, 0, RESOLVED);
+   } else {
+@@ -123,7 +125,9 @@ export function invokeWorkerSync<T extends SQLiteWorkerMessageType & keyof Resul
+     ++i;
+ 
+     if (useAtomicsPause) {
+-      if (i > 1_000_000) {
++      // Patch Meu Estoque: 1 milhão de pausas dura poucos milissegundos, e uma transação
++      // gravando no armazenamento do navegador demora mais que isso ("Sync operation timeout").
++      if (i > 1_000_000_000) {
+         throw new Error('Sync operation timeout');
+       }
+       // @ts-expect-error: Remove this when TypeScript supports Atomics.pause

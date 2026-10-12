@@ -1,42 +1,38 @@
-import { lojaResumoSchema } from '@meu-estoque/shared';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Botao } from '@/components/Botao';
-import { api, ErroApi } from '@/services/api';
+import { CartaoSincronizacao } from '@/components/CartaoSincronizacao';
+import { confirmar } from '@/services/confirmar';
 import { ehGestor, nomeDoPapel } from '@/services/permissoes';
 import { useSessaoStore } from '@/stores/sessaoStore';
+import { useSincronizacaoStore } from '@/stores/sincronizacaoStore';
 import { cores } from '@/theme/cores';
 
-/** Tela inicial. As tarefas chegam na Etapa 8; por enquanto, sessão e testes da API. */
+/** Tela inicial. As tarefas chegam na Etapa 8; por enquanto, sessão e sincronização. */
 export default function TelaInicio() {
   const router = useRouter();
   const usuario = useSessaoStore((s) => s.usuario);
   const loja = useSessaoStore((s) => s.loja);
   const trocarLoja = useSessaoStore((s) => s.trocarLoja);
   const sair = useSessaoStore((s) => s.sair);
+  const pendentes = useSincronizacaoStore((s) => s.pendentes);
 
-  const [testeApi, setTesteApi] = useState<string | null>(null);
-  const [testando, setTestando] = useState(false);
   const [saindo, setSaindo] = useState(false);
 
   if (!usuario || !loja) return null; // o _layout raiz não deixa chegar aqui sem os dois
 
-  /** Rota protegida por token E por escopo de loja (EscopoLojaGuard na API). */
-  async function testarRotaProtegida(): Promise<void> {
-    if (!loja) return;
-    setTestando(true);
-    try {
-      const dados = await api(`/lojas/${loja.id}`, { schema: lojaResumoSchema });
-      setTesteApi(`OK: a API confirmou acesso à loja ${dados.codigo}.`);
-    } catch (erro) {
-      setTesteApi(erro instanceof ErroApi ? `Erro ${erro.status}: ${erro.message}` : 'Erro');
-    } finally {
-      setTestando(false);
-    }
-  }
-
   async function confirmarSaida(): Promise<void> {
+    // Os eventos não enviados ficam guardados no aparelho e saem quando este usuário entrar de novo
+    if (pendentes > 0) {
+      const sairMesmo = await confirmar(
+        'Há ações não enviadas',
+        `${pendentes} ação(ões) ainda não chegaram ao servidor. Elas ficam guardadas neste aparelho ` +
+          'e serão enviadas quando você entrar de novo. Sair mesmo assim?',
+        'Sair',
+      );
+      if (!sairMesmo) return;
+    }
     setSaindo(true);
     await sair();
   }
@@ -59,6 +55,8 @@ export default function TelaInicio() {
         ) : null}
       </View>
 
+      <CartaoSincronizacao />
+
       <View style={estilos.cartao}>
         <Text style={estilos.rotulo}>Minhas tarefas</Text>
         <Text style={estilos.texto}>O motor de tarefas chega na Etapa 8.</Text>
@@ -67,17 +65,6 @@ export default function TelaInicio() {
       {ehGestor(usuario.papel) ? (
         <Botao titulo="Fila da loja" onPress={() => router.push('/fila')} />
       ) : null}
-
-      <View style={estilos.cartao}>
-        <Text style={estilos.rotulo}>Teste da API</Text>
-        <Botao
-          titulo="Testar rota protegida"
-          variante="secundario"
-          carregando={testando}
-          onPress={() => void testarRotaProtegida()}
-        />
-        {testeApi ? <Text style={estilos.texto}>{testeApi}</Text> : null}
-      </View>
 
       <Botao
         titulo="Sair"

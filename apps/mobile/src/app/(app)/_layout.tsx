@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { useSincronizacaoAutomatica } from '@/hooks/useSincronizacaoAutomatica';
 import { ehGestor } from '@/services/permissoes';
 import { useSessaoStore } from '@/stores/sessaoStore';
 import { cores } from '@/theme/cores';
@@ -9,6 +10,8 @@ import { cores } from '@/theme/cores';
  */
 export default function LayoutApp() {
   const gestor = useSessaoStore((s) => ehGestor(s.usuario?.papel));
+  // Este layout só existe com usuário logado e loja escolhida: é aqui que a sincronização roda
+  useSincronizacaoAutomatica();
 
   return (
     <Stack
