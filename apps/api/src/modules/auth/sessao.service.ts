@@ -2,7 +2,14 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.schema.js';
+import type { SessaoRefresh } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma.service.js';
+
+/**
+ * Tempo em que um refresh token recém-trocado ainda é aceito de novo
+ * (reenvio por falha de rede). Curto de propósito: ver tratarReuso.
+ */
+const JANELA_TOLERANCIA_MS = 30_000;
 
 export interface RefreshEmitido {
   refreshToken: string;
@@ -35,8 +42,9 @@ export class SessaoService {
 
   /**
    * Troca um refresh token por um novo. O antigo deixa de valer na hora.
-   * Se um token JÁ TROCADO aparecer de novo, alguém o copiou:
-   * derrubamos a família inteira e o usuário precisa entrar de novo.
+   * Se um token JÁ TROCADO aparecer de novo, alguém pode tê-lo copiado:
+   * derrubamos a família inteira e o usuário precisa entrar de novo
+   * (exceto na janela de tolerância, ver tratarReuso).
    */
   async renovar(refreshToken: string): Promise<SessaoRenovada> {
     const sessao = await this.prisma.sessaoRefresh.findUnique({
@@ -46,31 +54,74 @@ export class SessaoService {
 
     if (!sessao) throw new UnauthorizedException('Sessão inválida');
 
-    if (sessao.revogadoEm) {
-      await this.revogarFamilia(sessao.familiaId);
-      this.logger.warn(
-        `Refresh token reutilizado (usuário ${sessao.usuarioId}). Família ${sessao.familiaId} revogada.`,
-      );
-      throw new UnauthorizedException('Sessão inválida');
-    }
-
     if (sessao.expiraEm <= new Date() || !sessao.usuario.ativo) {
       await this.revogarFamilia(sessao.familiaId);
       throw new UnauthorizedException('Sessão expirada');
     }
 
+    if (sessao.revogadoEm) return this.tratarReuso(sessao);
+
     // Revoga o token atual SOMENTE se ninguém fez isso antes (condição no WHERE).
     // Se duas renovações com o mesmo token chegarem juntas, só uma vence;
     // a outra é tratada como reutilização.
+    const agora = new Date();
     const { count } = await this.prisma.sessaoRefresh.updateMany({
       where: { id: sessao.id, revogadoEm: null },
-      data: { revogadoEm: new Date() },
+      data: { revogadoEm: agora, substituidoEm: agora },
     });
     if (count === 0) {
-      await this.revogarFamilia(sessao.familiaId);
-      throw new UnauthorizedException('Sessão inválida');
+      const atual = await this.prisma.sessaoRefresh.findUniqueOrThrow({ where: { id: sessao.id } });
+      return this.tratarReuso(atual);
     }
 
+    return this.emitirRenovacao(sessao);
+  }
+
+  /**
+   * Um token já revogado chegou de novo. Há dois cenários bem diferentes:
+   *
+   * 1. Rede ruim (comum no depósito e na câmara fria): o servidor trocou o token,
+   *    mas a resposta se perdeu no caminho. O app, sem saber, reenvia o token antigo
+   *    poucos segundos depois. Derrubar a sessão aqui seria punir o operador pelo sinal ruim.
+   * 2. Roubo: alguém copiou o token e o usa depois que o dono legítimo já o trocou.
+   *
+   * Regra: se o token foi substituído por ROTAÇÃO há menos de JANELA_TOLERANCIA_MS
+   * e a família ainda está ativa (ninguém fez logout), aceitamos e emitimos um par novo,
+   * revogando o par que se perdeu. Fora disso, revogamos a família inteira.
+   *
+   * O risco aceito: um ladrão com o token teria só essa janela curta. E se ele usar a janela,
+   * o dono legítimo ficará com um token revogado: na próxima renovação dele (fora da janela)
+   * a família inteira cai, derrubando também o ladrão.
+   */
+  private async tratarReuso(sessao: SessaoRefresh): Promise<SessaoRenovada> {
+    const dentroDaJanela =
+      sessao.substituidoEm !== null &&
+      Date.now() - sessao.substituidoEm.getTime() <= JANELA_TOLERANCIA_MS;
+
+    if (dentroDaJanela) {
+      const agora = new Date();
+      // Revoga o(s) token(s) ativo(s) da família: o que o app não chegou a receber
+      const { count } = await this.prisma.sessaoRefresh.updateMany({
+        where: { familiaId: sessao.familiaId, revogadoEm: null },
+        data: { revogadoEm: agora, substituidoEm: agora },
+      });
+      // count === 0: a família já tinha sido encerrada (logout ou revogação). Não reabrimos.
+      if (count > 0) {
+        this.logger.log(
+          `Reenvio de refresh dentro da janela de tolerância (família ${sessao.familiaId})`,
+        );
+        return this.emitirRenovacao(sessao);
+      }
+    }
+
+    await this.revogarFamilia(sessao.familiaId);
+    this.logger.warn(
+      `Refresh token reutilizado (usuário ${sessao.usuarioId}). Família ${sessao.familiaId} revogada.`,
+    );
+    throw new UnauthorizedException('Sessão inválida');
+  }
+
+  private async emitirRenovacao(sessao: SessaoRefresh): Promise<SessaoRenovada> {
     const novo = await this.emitir(
       sessao.usuarioId,
       sessao.familiaId,

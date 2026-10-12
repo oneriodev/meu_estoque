@@ -75,6 +75,18 @@ describe('Sincronização do catálogo com o ERP (e2e)', () => {
     expect(body.posicoes).toBeGreaterThanOrEqual(34);
   });
 
+  it('sincronizar de novo sem mudanças no ERP não regrava nada', async () => {
+    await sincronizar(tokens.admin).expect(200);
+    const arroz = () => prisma.produto.findUniqueOrThrow({ where: { codigoErp: '10001' } });
+    const antes = await arroz();
+
+    const { body } = await sincronizar(tokens.admin).expect(200);
+
+    expect(body.alterados).toBe(0);
+    // atualizadoEm intacto: os aparelhos não vão baixar o catálogo inteiro de novo
+    expect((await arroz()).atualizadoEm).toEqual(antes.atualizadoEm);
+  });
+
   it('é idempotente: sincronizar de novo não duplica nada', async () => {
     const contar = () =>
       Promise.all([prisma.categoria.count(), prisma.produto.count(), prisma.ean.count()]);

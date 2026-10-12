@@ -62,6 +62,7 @@ model Loja {
   produtos     ProdutoLoja[]
   lotes        Lote[]
   tarefas      Tarefa[]
+  eventosRecebidos EventoRecebido[]
 
   @@map("lojas")
 }
@@ -82,6 +83,7 @@ model Usuario {
   tarefasCriadas    Tarefa[]       @relation("TarefaCriador")
   eventosTarefa     TarefaEvento[]
   sessoes           SessaoRefresh[]
+  eventosEnviados   EventoRecebido[]
 
   @@map("usuarios")
 }
@@ -112,6 +114,8 @@ model SessaoRefresh {
   expiraEm    DateTime  @map("expira_em") @db.Timestamptz(3)
   /// Preenchido quando o token é trocado (rotação), no logout ou por segurança
   revogadoEm  DateTime? @map("revogado_em") @db.Timestamptz(3)
+  /// Preenchido SÓ na rotação: permite a janela de tolerância para reenvios de rede
+  substituidoEm DateTime? @map("substituido_em") @db.Timestamptz(3)
   criadoEm    DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
 
   @@index([usuarioId])
@@ -296,4 +300,39 @@ model TarefaEvento {
 
   @@index([tarefaId, ocorridoEm])
   @@map("tarefa_eventos")
+}
+
+// ─── Sincronização (Etapa 6) ────────────────────────────────────────────────
+
+/// Resultado do processamento de um evento enviado pelo aparelho.
+enum ResultadoEvento {
+  /// Aceito e aplicado
+  APLICADO
+  /// Recusado por regra de negócio ou dados inválidos: o aparelho não deve reenviar
+  REJEITADO
+}
+
+/// "Caixa de entrada" dos eventos que chegam da outbox dos aparelhos.
+/// O id é o UUID gerado NO APARELHO: se o mesmo evento chegar duas vezes,
+/// a chave primária impede a duplicidade (idempotência).
+/// Também serve de auditoria: quem enviou o quê, de qual loja e quando.
+model EventoRecebido {
+  id         String          @id @db.Uuid
+  tipo       String
+  lojaId     String          @map("loja_id") @db.Uuid
+  loja       Loja            @relation(fields: [lojaId], references: [id])
+  usuarioId  String          @map("usuario_id") @db.Uuid
+  usuario    Usuario         @relation(fields: [usuarioId], references: [id])
+  /// Horário do aparelho quando o fato aconteceu (pode estar errado: o aparelho não é confiável)
+  ocorridoEm DateTime        @map("ocorrido_em") @db.Timestamptz(3)
+  /// Horário do servidor: este sim é confiável
+  recebidoEm DateTime        @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  resultado  ResultadoEvento
+  /// Por que foi rejeitado (vazio quando aplicado)
+  motivo     String?
+  dados      Json?
+
+  @@index([lojaId, recebidoEm])
+  @@index([usuarioId])
+  @@map("eventos_recebidos")
 }

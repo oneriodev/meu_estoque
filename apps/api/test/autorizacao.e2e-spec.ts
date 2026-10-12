@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -102,6 +102,8 @@ describe('Autorização por perfil e por loja (e2e)', () => {
   });
 });
 
+const sha256 = (texto: string) => createHash('sha256').update(texto).digest('hex');
+
 describe('Refresh token e logout (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -159,9 +161,25 @@ describe('Refresh token e logout (e2e)', () => {
       .expect(200);
   });
 
-  it('reutilizar um refresh antigo derruba a sessão inteira', async () => {
+  it('reenvio do mesmo refresh logo depois (rede ruim) é tolerado', async () => {
+    const { body: login1 } = await entrar();
+    await renovar(login1.refreshToken).expect(200);
+
+    // A resposta "se perdeu": o app reenvia o token antigo segundos depois
+    const { body: reenvio } = await renovar(login1.refreshToken).expect(200);
+    // O par entregue no reenvio funciona normalmente
+    await renovar(reenvio.refreshToken).expect(200);
+  });
+
+  it('reutilizar um refresh antigo FORA da janela derruba a sessão inteira', async () => {
     const { body: login1 } = await entrar();
     const { body: renovado } = await renovar(login1.refreshToken).expect(200);
+
+    // Simula o tempo passando: o token foi trocado há 1 minuto (janela = 30 s)
+    await prisma.sessaoRefresh.update({
+      where: { tokenHash: sha256(login1.refreshToken) },
+      data: { substituidoEm: new Date(Date.now() - 60_000) },
+    });
 
     // Alguém tenta usar o token antigo (como faria quem o copiou)
     await renovar(login1.refreshToken).expect(401);
@@ -169,12 +187,17 @@ describe('Refresh token e logout (e2e)', () => {
     await renovar(renovado.refreshToken).expect(401);
   });
 
-  it('depois do logout, o refresh token não renova mais', async () => {
-    const { body } = await entrar();
+  it('depois do logout, nenhum token da sessão renova (nem dentro da janela)', async () => {
+    // Um login só neste teste: o limite de login é 5 por minuto, e este bloco já faz 5
+    const { body: login1 } = await entrar();
+    const { body: renovado } = await renovar(login1.refreshToken).expect(200);
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
-      .send({ refreshToken: body.refreshToken })
+      .send({ refreshToken: renovado.refreshToken })
       .expect(204);
-    await renovar(body.refreshToken).expect(401);
+
+    await renovar(renovado.refreshToken).expect(401);
+    // Token antigo, ainda dentro dos 30 s: a família foi encerrada, a janela não reabre
+    await renovar(login1.refreshToken).expect(401);
   });
 });

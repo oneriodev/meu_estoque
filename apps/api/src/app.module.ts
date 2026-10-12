@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IntegracaoModule } from './modules/integracao/integracao.module.js';
 import { LojasModule } from './modules/lojas/lojas.module.js';
+import { SincronizacaoModule } from './modules/sincronizacao/sincronizacao.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { LojasModule } from './modules/lojas/lojas.module.js';
     AuthModule,
     LojasModule,
     IntegracaoModule,
+    SincronizacaoModule, // pull e push dos aparelhos (Etapa 6)
   ],
   providers: [
     // Guards globais, executados nesta ordem:
