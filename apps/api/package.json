@@ -20,7 +20,8 @@
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:seed:tarefas": "tsx prisma/seed-tarefas.ts"
   },
   "dependencies": {
     "@meu-estoque/shared": "*",

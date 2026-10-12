@@ -6,3 +6,4 @@ export * from './sincronizacao.js';
 export * from './leituraCodigo.js';
 export * from './texto.js';
 export * from './formatacao.js';
+export * from './tarefas.js';

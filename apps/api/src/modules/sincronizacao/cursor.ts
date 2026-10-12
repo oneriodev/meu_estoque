@@ -2,7 +2,14 @@ import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 
 /** As entidades do pull, NA ORDEM em que são enviadas (categorias antes de produtos etc.). */
-export const ENTIDADES_PULL = ['categorias', 'produtos', 'eans', 'produtosLoja', 'lotes'] as const;
+export const ENTIDADES_PULL = [
+  'categorias',
+  'produtos',
+  'eans',
+  'produtosLoja',
+  'lotes',
+  'tarefas',
+] as const;
 export type EntidadePull = (typeof ENTIDADES_PULL)[number];
 
 /**
@@ -23,12 +30,22 @@ const cursorSchema = z.object({
     eans: marcaSchema,
     produtosLoja: marcaSchema,
     lotes: marcaSchema,
+    // Entidade nova (Etapa 8): cursores antigos não têm esta chave e começam do zero nela.
+    // Sem o default, todo aparelho teria de refazer a carga inicial inteira.
+    tarefas: marcaSchema.default(null),
   }),
 });
 export type Marcas = z.infer<typeof cursorSchema>['marcas'];
 
 export function marcasIniciais(): Marcas {
-  return { categorias: null, produtos: null, eans: null, produtosLoja: null, lotes: null };
+  return {
+    categorias: null,
+    produtos: null,
+    eans: null,
+    produtosLoja: null,
+    lotes: null,
+    tarefas: null,
+  };
 }
 
 /**

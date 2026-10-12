@@ -8,8 +8,11 @@ import {
   type ProdutoSync,
   type PullQuery,
   type PullResponse,
+  STATUS_ABERTOS,
+  type TarefaResumo,
 } from '@meu-estoque/shared';
 import { PrismaService } from '../../database/prisma.service.js';
+import { paraResumo, selecaoResumo } from '../tarefas/tarefas.service.js';
 import {
   codificarCursor,
   decodificarCursor,
@@ -28,6 +31,9 @@ import {
  * Com a margem, damos tempo para as transações em andamento terminarem.
  */
 const HORIZONTE_MS = 2_000;
+
+/** Tarefas encerradas continuam indo para o aparelho por este tempo (histórico recente). */
+const DIAS_TAREFAS_ENCERRADAS = 7;
 
 /** Resultado da busca de uma entidade: as linhas, a nova marca e se ficou algo para trás. */
 interface PaginaEntidade<T> {
@@ -84,6 +90,7 @@ export class SincronizacaoService {
       eans: [],
       produtosLoja: [],
       lotes: [],
+      tarefas: [],
     };
 
     let restante = limite;
@@ -132,6 +139,8 @@ export class SincronizacaoService {
         return this.produtosLoja(lojaId, marca, ate, limite);
       case 'lotes':
         return this.lotes(lojaId, marca, ate, limite);
+      case 'tarefas':
+        return this.tarefas(lojaId, marca, ate, limite);
     }
   }
 
@@ -276,5 +285,36 @@ export class SincronizacaoService {
         excluido: l.excluidoEm !== null,
       })),
     };
+  }
+
+  /**
+   * Tarefas da loja: todas as abertas, mais as encerradas nos últimos dias.
+   * Uma tarefa que muda de status (ex.: alguém a concluiu) ganha atualizadoEm novo
+   * e chega aos outros aparelhos no próximo pull: é assim que a equipe vê o que o colega fez.
+   */
+  private async tarefas(
+    lojaId: string,
+    marca: Marca,
+    ate: Date,
+    limite: number,
+  ): Promise<PaginaEntidade<TarefaResumo>> {
+    const desde = new Date(Date.now() - DIAS_TAREFAS_ENCERRADAS * 24 * 60 * 60 * 1000);
+    const { registros, ...resto } = cortar(
+      await this.prisma.tarefa.findMany({
+        where: {
+          lojaId,
+          AND: [
+            depoisDaMarca(marca, ate),
+            { OR: [{ status: { in: [...STATUS_ABERTOS] } }, { atualizadoEm: { gte: desde } }] },
+          ],
+        },
+        select: selecaoResumo,
+        orderBy: ORDEM_KEYSET,
+        take: limite + 1,
+      }),
+      limite,
+      (t) => t.id,
+    );
+    return { ...resto, linhas: registros.map(paraResumo) };
   }
 }

@@ -11,19 +11,8 @@ import type { z } from 'zod';
 import type { UsuarioAutenticado } from '../../common/auth/usuario-autenticado.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
-
-/** Quem enviou e de qual loja: o que todo aplicador de evento precisa saber. */
-export interface ContextoEvento {
-  lojaId: string;
-  usuario: UsuarioAutenticado;
-  ocorridoEm: Date;
-}
-
-/**
- * Lançado por um aplicador quando o evento viola uma regra de negócio
- * (ex.: aceitar uma tarefa já concluída). O evento é REJEITADO e não volta mais.
- */
-export class EventoRejeitado extends Error {}
+import { TarefasService } from '../tarefas/tarefas.service.js';
+import { EventoRejeitado, type ContextoEvento } from './evento.js';
 
 type DadosDo<T extends TipoEvento> = z.output<(typeof dadosEventoPorTipo)[T]>;
 type Aplicador<T extends TipoEvento> = (
@@ -31,16 +20,6 @@ type Aplicador<T extends TipoEvento> = (
   contexto: ContextoEvento,
   dados: DadosDo<T>,
 ) => Promise<void>;
-
-/**
- * O que cada tipo de evento faz no banco. As próximas etapas acrescentam aqui
- * (aceitar tarefa, cadastrar lote, registrar quebra...).
- * O TypeScript obriga a ter um aplicador para CADA tipo declarado no shared.
- */
-const aplicadores: { [T in TipoEvento]: Aplicador<T> } = {
-  // Não altera nada: só prova que o evento atravessou a fila e foi registrado
-  DIAGNOSTICO: async () => {},
-};
 
 function ehTipoConhecido(tipo: string): tipo is TipoEvento {
   return Object.hasOwn(dadosEventoPorTipo, tipo);
@@ -63,7 +42,23 @@ function ehChaveDuplicada(erro: unknown): boolean {
 export class EventosService {
   private readonly logger = new Logger(EventosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  /**
+   * O que cada tipo de evento faz no banco. O TypeScript obriga a ter um aplicador
+   * para CADA tipo declarado no shared: esquecer um tipo novo é erro de compilação.
+   */
+  private readonly aplicadores: { [T in TipoEvento]: Aplicador<T> };
+
+  constructor(
+    private readonly prisma: PrismaService,
+    tarefasService: TarefasService,
+  ) {
+    this.aplicadores = {
+      // Não altera nada: só prova que o evento atravessou a fila e foi registrado
+      DIAGNOSTICO: async () => {},
+      TAREFA_ACAO: (tx, contexto, dados) => tarefasService.aplicarAcao(tx, contexto, dados),
+      TAREFA_CRIADA: (tx, contexto, dados) => tarefasService.criarPorEvento(tx, contexto, dados),
+    };
+  }
 
   async receber(
     lojaId: string,
@@ -116,13 +111,18 @@ export class EventosService {
     }
 
     // 3. Registra e aplica na MESMA transação
-    const contexto: ContextoEvento = { lojaId, usuario, ocorridoEm: new Date(evento.ocorridoEm) };
+    const contexto: ContextoEvento = {
+      eventoId: evento.id,
+      lojaId,
+      usuario,
+      ocorridoEm: new Date(evento.ocorridoEm),
+    };
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.eventoRecebido.create({
           data: this.registro(lojaId, usuario, evento, 'APLICADO', null),
         });
-        const aplicar = aplicadores[evento.tipo as TipoEvento] as Aplicador<TipoEvento>;
+        const aplicar = this.aplicadores[evento.tipo as TipoEvento] as Aplicador<TipoEvento>;
         await aplicar(tx, contexto, validacao.data);
       });
       return { id: evento.id, status: 'APLICADO' };

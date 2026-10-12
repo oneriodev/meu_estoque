@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dadosAcaoTarefaSchema, dadosCriarTarefaSchema, tarefaResumoSchema } from './tarefas.js';
 
 // ─── Tipos básicos ────────────────────────────────────────────────────────────
 
@@ -71,6 +72,11 @@ export const alteracoesSchema = z.object({
   eans: z.array(eanSyncSchema),
   produtosLoja: z.array(produtoLojaSyncSchema),
   lotes: z.array(loteSyncSchema),
+  /**
+   * Tarefas da loja: as abertas e as encerradas nos últimos dias (para o histórico recente).
+   * Tarefa não é apagada: encerrada, ela chega com o status final e o app decide se mantém.
+   */
+  tarefas: z.array(tarefaResumoSchema),
 });
 export type Alteracoes = z.infer<typeof alteracoesSchema>;
 
@@ -100,11 +106,15 @@ export type PullResponse = z.infer<typeof pullResponseSchema>;
 
 /**
  * Tipos de evento aceitos e o formato dos dados de cada um.
- * Cada etapa nova acrescenta tipos aqui (TAREFA_ACEITA, LOTE_CADASTRADO, QUEBRA_REGISTRADA...).
+ * Cada etapa nova acrescenta tipos aqui (Etapa 9: LOTE_CADASTRADO, QUEBRA_REGISTRADA...).
  * DIAGNOSTICO não muda nada no servidor: serve para testar a fila de ponta a ponta.
  */
 export const dadosEventoPorTipo = {
   DIAGNOSTICO: z.object({ mensagem: z.string().trim().min(1).max(200) }),
+  /** Aceitar, iniciar, concluir, devolver, impedir, cancelar ou reabrir uma tarefa */
+  TAREFA_ACAO: dadosAcaoTarefaSchema,
+  /** Tarefa criada no aparelho (ex.: o operador bipou um produto no corredor) */
+  TAREFA_CRIADA: dadosCriarTarefaSchema,
 } as const;
 
 export type TipoEvento = keyof typeof dadosEventoPorTipo;
