@@ -27,9 +27,7 @@
         ]
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.CAMERA"
-      ],
+      "permissions": ["android.permission.CAMERA"],
       "package": "io.github.oneriodev.meuestoque"
     },
     "web": {

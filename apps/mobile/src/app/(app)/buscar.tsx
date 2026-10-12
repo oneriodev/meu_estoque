@@ -46,7 +46,7 @@ export default function TelaBusca() {
     return () => clearTimeout(temporizador);
   }, [texto, ultimaSincronizacao]);
 
-    /**
+  /**
    * Busca no banco local sem derrubar a tela: se o SQLite recusar a consulta
    * (ex.: banco do aparelho desatualizado), mostra a mensagem no lugar dos resultados.
    */
