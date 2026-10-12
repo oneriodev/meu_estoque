@@ -82,6 +82,40 @@ export const lotes = sqliteTable(
   ],
 );
 
+/**
+ * Tarefas da loja, como o SERVIDOR as conhece (cópia do pull).
+ * O que a tela mostra é esta cópia MAIS as ações do operador que ainda estão na outbox
+ * (ver tarefaRepositorio): assim a pessoa vê o efeito do que fez na hora, mesmo offline.
+ */
+export const tarefas = sqliteTable(
+  'tarefas',
+  {
+    id: text('id').primaryKey(),
+    tipo: text('tipo', {
+      enum: ['VALIDADE', 'REPOSICAO', 'RUPTURA', 'CONTAGEM', 'AUDITORIA_PRECO', 'MANUAL'],
+    }).notNull(),
+    status: text('status', {
+      enum: ['GERADA', 'ACEITA', 'EM_EXECUCAO', 'CONCLUIDA', 'CANCELADA', 'IMPEDIDA', 'OBSOLETA'],
+    }).notNull(),
+    origem: text('origem', { enum: ['AUTOMATICA', 'MANUAL'] }).notNull(),
+    prioridade: integer('prioridade').notNull(),
+    titulo: text('titulo').notNull(),
+    descricao: text('descricao'),
+    produtoId: text('produto_id'),
+    loteId: text('lote_id'),
+    responsavelId: text('responsavel_id'),
+    responsavelNome: text('responsavel_nome'),
+    /** Datas em ISO 8601 (texto ordena certo e não perde o fuso) */
+    prazo: text('prazo'),
+    criadoEm: text('criado_em').notNull(),
+    atualizadoEm: text('atualizado_em').notNull(),
+  },
+  (tabela) => [
+    index('tarefas_status_idx').on(tabela.status),
+    index('tarefas_produto_idx').on(tabela.produtoId),
+  ],
+);
+
 // ─── Fila de saída (outbox) ───────────────────────────────────────────────────
 
 /**

@@ -6,9 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
-  REGRAS_ACOES,
   STATUS_ABERTOS,
   ehGestor,
+  resultadoDaAcao,
   validarAcao,
   type AtribuirTarefaRequest,
   type CriarTarefaRequest,
@@ -103,19 +103,14 @@ export class TarefasService {
       );
     }
 
-    const regra = REGRAS_ACOES[acao];
-    const responsavelId =
-      acao === 'ACEITAR' || acao === 'INICIAR'
-        ? (tarefa.responsavelId ?? contexto.usuario.id) // assumir
-        : acao === 'DEVOLVER' || acao === 'REABRIR'
-          ? null // volta para a fila
-          : tarefa.responsavelId;
+    // A mesma função que o app usa para mostrar o resultado antes de sincronizar
+    const novo = resultadoDaAcao(tarefa, acao, contexto.usuario.id);
 
     // "Controle otimista de concorrência": só atualiza se o status ainda for o que lemos.
     // Se outra ação mudou a tarefa entre a leitura e a gravação, count = 0.
     const { count } = await tx.tarefa.updateMany({
       where: { id: tarefaId, status: tarefa.status },
-      data: { status: regra.para, responsavelId },
+      data: novo,
     });
     if (count === 0) {
       throw new EventoRejeitado(
@@ -128,7 +123,7 @@ export class TarefasService {
         id: contexto.eventoId, // o mesmo UUID do evento: idempotência também no histórico
         tarefaId,
         statusAnterior: tarefa.status,
-        statusNovo: regra.para,
+        statusNovo: novo.status,
         usuarioId: contexto.usuario.id,
         motivo: motivo ?? null,
         ocorridoEm: contexto.ocorridoEm,
@@ -313,6 +308,15 @@ export class TarefasService {
         recebidoEm: evento.recebidoEm.toISOString(),
       })),
     };
+  }
+
+  /** Estado atual da tarefa (ou null se não existe nesta loja). Usado na resposta do push. */
+  async resumoSeExistir(lojaId: string, tarefaId: string): Promise<TarefaResumo | null> {
+    const tarefa = await this.prisma.tarefa.findFirst({
+      where: { id: tarefaId, lojaId },
+      select: selecaoResumo,
+    });
+    return tarefa ? paraResumo(tarefa) : null;
   }
 
   // ─── Apoio ───────────────────────────────────────────────────────────────────

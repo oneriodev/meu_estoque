@@ -6,10 +6,15 @@ import {
   interpretarCodigo,
   type LeituraCodigo,
 } from '@meu-estoque/shared';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { STATUS_ABERTOS } from '@meu-estoque/shared';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Botao } from '@/components/Botao';
+import { CartaoTarefa } from '@/components/CartaoTarefa';
 import { detalharProduto } from '@/db/repositorios/produtoRepositorio';
+import { useConsultaLocal } from '@/hooks/useConsultaLocal';
+import { useTarefas } from '@/hooks/useTarefas';
 import { useSincronizacaoStore } from '@/stores/sincronizacaoStore';
 import { cores } from '@/theme/cores';
 
@@ -62,14 +67,12 @@ export default function TelaProduto() {
     codigo?: string;
     embalagem?: string;
   }>();
+  const router = useRouter();
   const ultimaSincronizacao = useSincronizacaoStore((s) => s.ultimaSincronizacao);
+  const { tarefas } = useTarefas();
 
-  // useMemo: só consulta o banco de novo se o produto ou a sincronização mudarem
-  const produto = useMemo(
-    () => detalharProduto(id),
-    // ultimaSincronizacao não é usada dentro: está aqui para refazer a consulta após cada sincronização
-    [id, ultimaSincronizacao],
-  );
+  // Refaz a consulta quando o banco do aparelho muda (pull, evento novo)
+  const produto = useConsultaLocal(() => detalharProduto(id), [id]);
   const leitura = useMemo(() => (codigo ? interpretarCodigo(codigo) : null), [codigo]);
 
   if (!produto) {
@@ -85,6 +88,9 @@ export default function TelaProduto() {
   const etiqueta = informacaoDaEtiqueta(leitura, quantidadeCaixa);
   // FEFO: o lote NÃO vencido com a validade mais próxima é o que vai para a frente da gôndola
   const primeiroValido = produto.lotes.find((lote) => diasAte(lote.validade) >= 0);
+  const tarefasDoProduto = tarefas.filter(
+    (t) => t.produtoId === produto.id && STATUS_ABERTOS.includes(t.status),
+  );
   const saldoNumero = produto.saldo === null ? null : Number(produto.saldo); // só para comparar com zero
 
   return (
@@ -158,7 +164,26 @@ export default function TelaProduto() {
 
       <View style={estilos.cartao}>
         <Text style={estilos.rotulo}>Tarefas abertas</Text>
-        <Text style={estilos.texto}>As tarefas chegam na Etapa 8.</Text>
+        {tarefasDoProduto.length === 0 ? (
+          <Text style={estilos.texto}>Nenhuma tarefa aberta para este produto.</Text>
+        ) : (
+          tarefasDoProduto.map((tarefa) => (
+            <CartaoTarefa
+              key={tarefa.id}
+              tarefa={tarefa}
+              mostrarResponsavel
+              onPress={() => router.push({ pathname: '/tarefas/[id]', params: { id: tarefa.id } })}
+            />
+          ))
+        )}
+        {/* Bipou o produto no corredor e viu um problema: abre a tarefa já ligada a ele */}
+        <Botao
+          titulo="Abrir tarefa para este produto"
+          variante="secundario"
+          onPress={() =>
+            router.push({ pathname: '/tarefas/nova', params: { produtoId: produto.id } })
+          }
+        />
       </View>
 
       {/* Transparência do offline: a pessoa sabe de quando são os dados que está vendo */}

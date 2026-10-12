@@ -121,6 +121,37 @@ export function validarAcao(
   return null;
 }
 
+/**
+ * Como a tarefa fica depois da ação (status e responsável). Usada pela API para gravar
+ * e pelo app para mostrar o resultado na hora, antes mesmo de chegar ao servidor.
+ * - ACEITAR e INICIAR: quem age assume a tarefa (se ainda não tinha dono);
+ * - DEVOLVER e REABRIR: a tarefa volta para a fila, sem responsável;
+ * - as demais mantêm o responsável.
+ */
+export function resultadoDaAcao(
+  tarefa: { responsavelId: string | null },
+  acao: AcaoTarefa,
+  usuarioId: string,
+): { status: Status; responsavelId: string | null } {
+  const status = REGRAS_ACOES[acao].para;
+  if (acao === 'ACEITAR' || acao === 'INICIAR') {
+    return { status, responsavelId: tarefa.responsavelId ?? usuarioId };
+  }
+  if (acao === 'DEVOLVER' || acao === 'REABRIR') return { status, responsavelId: null };
+  return { status, responsavelId: tarefa.responsavelId };
+}
+
+/**
+ * Prioridade vai de 0 a 100 (a fila ordena da maior para a menor). A partir deste valor a
+ * tarefa aparece como "urgente". O motor de análise (Etapa 10) vai calcular a prioridade
+ * de cada tarefa automática; na criação manual, "urgente" grava exatamente este valor.
+ */
+export const PRIORIDADE_URGENTE = 80;
+
+export function ehUrgente(tarefa: { prioridade: number }): boolean {
+  return tarefa.prioridade >= PRIORIDADE_URGENTE;
+}
+
 export const NOMES_ACOES: Record<AcaoTarefa, string> = {
   ACEITAR: 'Aceitar',
   INICIAR: 'Iniciar',
@@ -129,6 +160,15 @@ export const NOMES_ACOES: Record<AcaoTarefa, string> = {
   IMPEDIR: 'Informar impedimento',
   CANCELAR: 'Cancelar',
   REABRIR: 'Reabrir',
+};
+
+export const NOMES_TIPOS: Record<z.infer<typeof tipoTarefaSchema>, string> = {
+  VALIDADE: 'Validade',
+  REPOSICAO: 'Reposição',
+  RUPTURA: 'Ruptura',
+  CONTAGEM: 'Contagem',
+  AUDITORIA_PRECO: 'Auditoria de preço',
+  MANUAL: 'Outra',
 };
 
 export const NOMES_STATUS: Record<Status, string> = {

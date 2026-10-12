@@ -3,7 +3,13 @@ import type { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import type { AcaoTarefa, PapelUsuario, PullResponse, TarefaDetalhe } from '@meu-estoque/shared';
+import type {
+  AcaoTarefa,
+  PapelUsuario,
+  PullResponse,
+  TarefaDetalhe,
+  TarefaResumo,
+} from '@meu-estoque/shared';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { PrismaService } from '../src/database/prisma.service.js';
@@ -34,7 +40,12 @@ describe('Motor de tarefas (e2e)', () => {
       .set('Authorization', `Bearer ${quem.token}`)
       .send({ eventos })
       .expect(200);
-    return body.resultados as { id: string; status: string; motivo?: string }[];
+    return body.resultados as {
+      id: string;
+      status: string;
+      motivo?: string;
+      tarefa?: TarefaResumo;
+    }[];
   }
 
   const evento = (tipo: string, dados: object) => ({
@@ -209,11 +220,18 @@ describe('Motor de tarefas (e2e)', () => {
 
     it('conflito offline: dois aceitam a mesma tarefa, o primeiro a chegar fica com ela', async () => {
       const { tarefaId } = await criarPeloAparelho(u.operadorA);
-      expect(await agir(u.operadorA, tarefaId, 'ACEITAR')).toMatchObject({ status: 'APLICADO' });
+      const primeiro = await agir(u.operadorA, tarefaId, 'ACEITAR');
+      // A resposta já traz a tarefa como ficou: o aparelho não espera o próximo pull
+      expect(primeiro).toMatchObject({
+        status: 'APLICADO',
+        tarefa: { id: tarefaId, status: 'ACEITA', responsavelId: u.operadorA.id },
+      });
 
       const segundo = await agir(u.operadorB, tarefaId, 'ACEITAR');
       expect(segundo.status).toBe('REJEITADO');
       expect(segundo.motivo).toContain(`Operador A ${sufixo}`); // diz com quem está
+      // Recusado, mas com o estado real: o aparelho do B mostra na hora que está com o A
+      expect(segundo.tarefa).toMatchObject({ status: 'ACEITA', responsavelId: u.operadorA.id });
     });
 
     it('cancelar e impedir exigem motivo', async () => {

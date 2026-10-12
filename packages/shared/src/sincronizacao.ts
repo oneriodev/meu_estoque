@@ -152,6 +152,12 @@ export const resultadoEnvioEventoSchema = z.object({
   id: z.uuid(),
   status: statusEventoSchema,
   motivo: z.string().optional(),
+  /**
+   * Eventos de tarefa: como a tarefa ficou no servidor DEPOIS deste evento (aplicado ou
+   * recusado). O aparelho grava na hora e não precisa esperar o próximo pull para mostrar
+   * o estado certo (o pull só enxerga mudanças com mais de 2 segundos, ver "horizonte").
+   */
+  tarefa: tarefaResumoSchema.optional(),
 });
 export type ResultadoEnvioEvento = z.infer<typeof resultadoEnvioEventoSchema>;
 

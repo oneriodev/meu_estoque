@@ -1,8 +1,8 @@
 import { normalizarBusca, type Alteracoes } from '@meu-estoque/shared';
-import { count, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, getTableColumns, inArray, lt, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { bancoLocal, type TransacaoLocal } from '../cliente';
-import { categorias, eans, lotes, produtos, produtosLoja } from '../schema';
+import { categorias, eans, lotes, produtos, produtosLoja, tarefas } from '../schema';
 import { apagarEstado, gravarEstado } from './estadoRepositorio';
 
 /**
@@ -127,6 +127,15 @@ export function aplicarPagina(alteracoes: Alteracoes, cursor: string): number {
         quantidadeEstimada: l.quantidadeEstimada,
       }),
     );
+    // Tarefas não têm "excluido": encerradas chegam com o status final (o servidor manda 7 dias)
+    aplicar(
+      tx,
+      tarefas,
+      tarefas.id,
+      alteracoes.tarefas.map((t) => ({ ...t, excluido: false })),
+      (t) => t.id,
+      ({ excluido: _excluido, ...tarefa }) => tarefa,
+    );
     gravarEstado('cursor', cursor, tx);
   });
 
@@ -139,7 +148,7 @@ export function aplicarPagina(alteracoes: Alteracoes, cursor: string): number {
  */
 export function limparCopiaLocal(): void {
   bancoLocal().transaction((tx) => {
-    for (const tabela of [categorias, produtos, eans, produtosLoja, lotes]) {
+    for (const tabela of [categorias, produtos, eans, produtosLoja, lotes, tarefas]) {
       tx.delete(tabela).run();
     }
     apagarEstado('cursor', tx);
@@ -158,4 +167,18 @@ export function contarCopiaLocal(): ContagemLocal {
   const contar = (tabela: SQLiteTable) =>
     bancoLocal().select({ total: count() }).from(tabela).get()?.total ?? 0;
   return { produtos: contar(produtos), eans: contar(eans), lotes: contar(lotes) };
+}
+
+/** Tarefas encerradas há mais de 7 dias saem do aparelho (o histórico completo fica no servidor). */
+export function limparTarefasAntigas(agora = new Date()): void {
+  const limite = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  bancoLocal()
+    .delete(tarefas)
+    .where(
+      and(
+        notInArray(tarefas.status, ['GERADA', 'ACEITA', 'EM_EXECUCAO']),
+        lt(tarefas.atualizadoEm, limite),
+      ),
+    )
+    .run();
 }

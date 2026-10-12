@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { acoesPermitidas, dadosAcaoTarefaSchema, validarAcao } from '../src/tarefas.js';
+import {
+  acoesPermitidas,
+  dadosAcaoTarefaSchema,
+  resultadoDaAcao,
+  validarAcao,
+} from '../src/tarefas.js';
 
 const operador = { id: 'op-1', papel: 'OPERADOR' as const };
 const colega = { id: 'op-2', papel: 'OPERADOR' as const };
@@ -56,5 +61,21 @@ describe('máquina de estados da tarefa', () => {
     expect(validarAcao({ status: 'ACEITA', responsavelId: 'op-1' }, colega, 'INICIAR')).toBe(
       'Esta tarefa foi assumida por outra pessoa',
     );
+  });
+
+  it('resultado da ação: quem aceita assume; devolver solta; concluir mantém o responsável', () => {
+    expect(resultadoDaAcao({ responsavelId: null }, 'ACEITAR', 'eu')).toEqual({
+      status: 'ACEITA',
+      responsavelId: 'eu',
+    });
+    expect(resultadoDaAcao({ responsavelId: 'eu' }, 'DEVOLVER', 'eu')).toEqual({
+      status: 'GERADA',
+      responsavelId: null,
+    });
+    // Gestor iniciando a tarefa de um operador: a tarefa continua com o operador
+    expect(resultadoDaAcao({ responsavelId: 'operador' }, 'INICIAR', 'gestor')).toEqual({
+      status: 'EM_EXECUCAO',
+      responsavelId: 'operador',
+    });
   });
 });

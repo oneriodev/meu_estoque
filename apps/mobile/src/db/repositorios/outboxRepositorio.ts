@@ -119,3 +119,31 @@ export function contarFila(usuarioId: string): { pendentes: number; rejeitados: 
     linhas.find((linha) => linha.situacao === situacao)?.total ?? 0;
   return { pendentes: total('PENDENTE'), rejeitados: total('REJEITADO') };
 }
+
+/** Eventos do usuário de certos tipos e situação, na ordem em que aconteceram. */
+export function eventosDoUsuario(
+  usuarioId: string,
+  tipos: string[],
+  situacao: ItemOutbox['situacao'],
+): ItemOutbox[] {
+  return bancoLocal()
+    .select()
+    .from(outbox)
+    .where(
+      and(
+        eq(outbox.usuarioId, usuarioId),
+        eq(outbox.situacao, situacao),
+        inArray(outbox.tipo, tipos),
+      ),
+    )
+    .orderBy(asc(outbox.sequencia))
+    .all();
+}
+
+/** O operador leu a recusa e dispensou o aviso: o evento rejeitado sai do aparelho. */
+export function descartarRejeitado(id: string): void {
+  bancoLocal()
+    .delete(outbox)
+    .where(and(eq(outbox.id, id), eq(outbox.situacao, 'REJEITADO')))
+    .run();
+}

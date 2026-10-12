@@ -36,6 +36,21 @@ export function formatarData(iso: string): string {
 }
 
 /**
+ * Data e hora de um INSTANTE (ex.: prazo de tarefa, "2026-10-12T21:00:00.000Z") no fuso
+ * do aparelho: "12/10/2026 18:00" em São Paulo.
+ * Diferente de formatarData, que trata datas de calendário (validade) e não pode mudar de dia
+ * por causa do fuso.
+ */
+export function formatarDataHora(iso: string): string {
+  const data = new Date(iso);
+  const doisDigitos = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${doisDigitos(data.getDate())}/${doisDigitos(data.getMonth() + 1)}/${data.getFullYear()} ` +
+    `${doisDigitos(data.getHours())}:${doisDigitos(data.getMinutes())}`
+  );
+}
+
+/**
  * Dias de hoje até a data (negativo = já passou). Conta dias de CALENDÁRIO no fuso
  * do aparelho: um produto que vence hoje dá 0, mesmo às 23h.
  */

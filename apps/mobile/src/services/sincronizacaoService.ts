@@ -3,7 +3,11 @@ import {
   MAXIMO_EVENTOS_POR_ENVIO,
   pullResponseSchema,
 } from '@meu-estoque/shared';
-import { aplicarPagina, limparCopiaLocal } from '@/db/repositorios/catalogoRepositorio';
+import {
+  aplicarPagina,
+  limparCopiaLocal,
+  limparTarefasAntigas,
+} from '@/db/repositorios/catalogoRepositorio';
 import { gravarEstado, lerEstado } from '@/db/repositorios/estadoRepositorio';
 import {
   marcarRejeitado,
@@ -12,6 +16,7 @@ import {
   removerEnviados,
   type ItemOutbox,
 } from '@/db/repositorios/outboxRepositorio';
+import { gravarTarefa } from '@/db/repositorios/tarefaRepositorio';
 import { api, ErroApi } from './api';
 
 /** Registros por página do pull. Páginas menores = transações mais curtas no aparelho. */
@@ -63,6 +68,7 @@ export async function puxarAlteracoes(
     cursor = pagina.cursor;
 
     if (!pagina.temMais) {
+      limparTarefasAntigas();
       gravarEstado('ultimaSincronizacao', pagina.servidorEm);
       return recebidos;
     }
@@ -112,8 +118,12 @@ export async function enviarFila(usuarioId: string): Promise<number> {
     const porId = new Map(resposta.resultados.map((resultado) => [resultado.id, resultado]));
     const concluidos: string[] = [];
     const semResposta: ItemOutbox[] = [];
+    // O lote é de UMA loja; só gravamos a tarefa devolvida se for a loja da cópia local
+    const mesmaLoja = primeiro.lojaId === lerEstado('lojaId');
     for (const item of lote) {
       const resultado = porId.get(item.id);
+      // Estado da tarefa depois do evento: a tela fica certa sem esperar o próximo pull
+      if (resultado?.tarefa && mesmaLoja) gravarTarefa(resultado.tarefa);
       if (!resultado) semResposta.push(item);
       else if (resultado.status === 'REJEITADO')
         marcarRejeitado(item.id, resultado.motivo ?? 'Rejeitado');

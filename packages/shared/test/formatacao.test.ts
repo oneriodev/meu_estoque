@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   diasAte,
   formatarData,
+  formatarDataHora,
   formatarDecimal,
   formatarMoeda,
   formatarQuantidade,
@@ -36,5 +37,9 @@ describe('formatação brasileira', () => {
     expect(diasAte('2026-10-19', hoje)).toBe(7);
     expect(diasAte('2026-10-10', hoje)).toBe(-2);
     expect(diasAte('2027-10-12', hoje)).toBe(365);
+  });
+  it('formatarDataHora usa o fuso do aparelho', () => {
+    const instante = new Date(2026, 9, 12, 18, 5); // 12/10/2026 18:05 no fuso local
+    expect(formatarDataHora(instante.toISOString())).toBe('12/10/2026 18:05');
   });
 });

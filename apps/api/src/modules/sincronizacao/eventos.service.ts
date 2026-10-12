@@ -50,7 +50,7 @@ export class EventosService {
 
   constructor(
     private readonly prisma: PrismaService,
-    tarefasService: TarefasService,
+    private readonly tarefasService: TarefasService,
   ) {
     this.aplicadores = {
       // Não altera nada: só prova que o evento atravessou a fila e foi registrado
@@ -117,6 +117,7 @@ export class EventosService {
       usuario,
       ocorridoEm: new Date(evento.ocorridoEm),
     };
+    let resultado: ResultadoEnvioEvento;
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.eventoRecebido.create({
@@ -125,17 +126,36 @@ export class EventosService {
         const aplicar = this.aplicadores[evento.tipo as TipoEvento] as Aplicador<TipoEvento>;
         await aplicar(tx, contexto, validacao.data);
       });
-      return { id: evento.id, status: 'APLICADO' };
+      resultado = { id: evento.id, status: 'APLICADO' };
     } catch (erro) {
       // Duas cópias do mesmo evento chegaram ao mesmo tempo: a outra já gravou
-      if (ehChaveDuplicada(erro)) return { id: evento.id, status: 'DUPLICADO' };
-      if (erro instanceof EventoRejeitado) {
-        return this.rejeitar(lojaId, usuario, evento, erro.message);
+      if (ehChaveDuplicada(erro)) {
+        resultado = { id: evento.id, status: 'DUPLICADO' };
+      } else if (erro instanceof EventoRejeitado) {
+        resultado = await this.rejeitar(lojaId, usuario, evento, erro.message);
+      } else {
+        // Erro inesperado (banco fora, bug): sobe como 500 e o aparelho tenta de novo mais tarde.
+        // Os eventos anteriores deste lote já foram gravados e voltarão como DUPLICADO.
+        throw erro;
       }
-      // Erro inesperado (banco fora, bug): sobe como 500 e o aparelho tenta de novo mais tarde.
-      // Os eventos anteriores deste lote já foram gravados e voltarão como DUPLICADO.
-      throw erro;
     }
+
+    // 4. Evento de tarefa: devolve como ela ficou (inclusive quando recusado: o aparelho
+    //    vê na hora que um colega assumiu a tarefa, sem esperar o próximo pull)
+    const tarefaId = this.tarefaDoEvento(validacao.data);
+    if (tarefaId) {
+      const tarefa = await this.tarefasService.resumoSeExistir(lojaId, tarefaId);
+      if (tarefa) resultado.tarefa = tarefa;
+    }
+    return resultado;
+  }
+
+  /** O id da tarefa, se o evento for sobre uma (TAREFA_ACAO e TAREFA_CRIADA têm "tarefaId"). */
+  private tarefaDoEvento(dados: unknown): string | null {
+    if (typeof dados === 'object' && dados !== null && 'tarefaId' in dados) {
+      return typeof dados.tarefaId === 'string' ? dados.tarefaId : null;
+    }
+    return null;
   }
 
   /** Grava o evento como REJEITADO (auditoria) e avisa o aparelho para não reenviar. */

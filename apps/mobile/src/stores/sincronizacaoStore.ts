@@ -18,6 +18,11 @@ interface EstadoSincronizacao {
   pendentes: number;
   rejeitados: number;
   copiaLocal: ContagemLocal;
+  /**
+   * Muda a cada alteração no banco local (evento novo, sincronização concluída...).
+   * As telas usam como "gatilho" para recalcular o que mostram.
+   */
+  versao: number;
 
   sincronizar: (opcoes?: { forcar?: boolean }) => Promise<void>;
   registrarEvento: (tipo: string, dados: unknown) => void;
@@ -26,6 +31,14 @@ interface EstadoSincronizacao {
 
 /** A rodada em andamento, compartilhada por quem pedir sincronização ao mesmo tempo. */
 let rodadaAtual: Promise<void> | null = null;
+/**
+ * Alguém pediu sincronização DURANTE uma rodada (ex.: o operador concluiu uma tarefa
+ * enquanto o pull rodava). O evento novo não entrou no envio desta rodada, então
+ * fazemos outra logo em seguida, em vez de esperar o próximo gatilho.
+ */
+let outraRodadaPedida = false;
+/** A rodada extra deve liberar as esperas? (se algum dos pedidos foi "forçado") */
+let outraRodadaForcada = false;
 
 /**
  * Estado e orquestração da sincronização.
@@ -40,10 +53,16 @@ export const useSincronizacaoStore = create<EstadoSincronizacao>()((set, get) =>
   pendentes: 0,
   rejeitados: 0,
   copiaLocal: { produtos: 0, eans: 0, lotes: 0 },
+  versao: 0,
 
   sincronizar({ forcar = false } = {}) {
     // Single flight: se já há uma rodada, quem pediu espera a mesma
-    rodadaAtual ??= (async () => {
+    if (rodadaAtual) {
+      outraRodadaPedida = true;
+      outraRodadaForcada ||= forcar;
+      return rodadaAtual;
+    }
+    rodadaAtual = (async () => {
       const { usuario, loja } = useSessaoStore.getState();
       if (!usuario || !loja) return;
 
@@ -68,6 +87,12 @@ export const useSincronizacaoStore = create<EstadoSincronizacao>()((set, get) =>
       }
     })().finally(() => {
       rodadaAtual = null;
+      if (outraRodadaPedida) {
+        const forcarExtra = outraRodadaForcada;
+        outraRodadaPedida = false;
+        outraRodadaForcada = false;
+        void get().sincronizar({ forcar: forcarExtra });
+      }
     });
     return rodadaAtual;
   },
@@ -78,16 +103,20 @@ export const useSincronizacaoStore = create<EstadoSincronizacao>()((set, get) =>
     if (!usuario || !loja) return;
     enfileirar({ tipo, dados, lojaId: loja.id, usuarioId: usuario.id });
     get().atualizarContagens();
-    void get().sincronizar();
+    // "forcar": uma ação nova da pessoa é um bom sinal para tentar AGORA, mesmo que a fila
+    // estivesse esperando o intervalo de nova tentativa (ex.: a rede acabou de voltar).
+    // Se continuar sem rede, a tentativa falha rápido e nada se perde.
+    void get().sincronizar({ forcar: true });
   },
 
   atualizarContagens() {
     const usuario = useSessaoStore.getState().usuario;
     const fila = usuario ? contarFila(usuario.id) : { pendentes: 0, rejeitados: 0 };
-    set({
+    set((estado) => ({
       ...fila,
       copiaLocal: contarCopiaLocal(),
       ultimaSincronizacao: lerEstado('ultimaSincronizacao'),
-    });
+      versao: estado.versao + 1,
+    }));
   },
 }));
