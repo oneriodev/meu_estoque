@@ -1,4 +1,4 @@
-import type { Alteracoes } from '@meu-estoque/shared';
+import { normalizarBusca, type Alteracoes } from '@meu-estoque/shared';
 import { count, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { bancoLocal, type TransacaoLocal } from '../cliente';
@@ -86,6 +86,7 @@ export function aplicarPagina(alteracoes: Alteracoes, cursor: string): number {
         id: p.id,
         codigoErp: p.codigoErp,
         descricao: p.descricao,
+        descricaoBusca: normalizarBusca(p.descricao),
         categoriaId: p.categoriaId,
         unidade: p.unidade,
         controlaLote: p.controlaLote,

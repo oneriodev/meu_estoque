@@ -62,7 +62,7 @@ export default function TelaInicio() {
         <Text style={estilos.texto}>O motor de tarefas chega na Etapa 8.</Text>
       </View>
 
-      <Botao titulo="Testar leitor de código" onPress={() => router.push('/leitor')} />
+      <Botao titulo="Buscar produto" onPress={() => router.push('/buscar')} />
 
       {ehGestor(usuario.papel) ? (
         <Botao titulo="Fila da loja" onPress={() => router.push('/fila')} />

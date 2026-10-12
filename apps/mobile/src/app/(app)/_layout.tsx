@@ -23,7 +23,8 @@ export default function LayoutApp() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Início' }} />
-      <Stack.Screen name="leitor" options={{ title: 'Testar leitor' }} />
+      <Stack.Screen name="buscar" options={{ title: 'Buscar produto' }} />
+      <Stack.Screen name="produto/[id]" options={{ title: 'Produto' }} />
       <Stack.Protected guard={gestor}>
         <Stack.Screen name="fila" options={{ title: 'Fila da loja' }} />
       </Stack.Protected>

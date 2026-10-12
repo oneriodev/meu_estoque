@@ -27,12 +27,20 @@ export const produtos = sqliteTable(
     id: text('id').primaryKey(),
     codigoErp: text('codigo_erp').notNull(),
     descricao: text('descricao').notNull(),
+    /**
+     * A descrição em minúsculas e sem acentos (normalizarBusca do shared), preenchida no pull.
+     * O LIKE do SQLite não ignora acentos: sem esta coluna, "feijao" não acharia "Feijão".
+     */
+    descricaoBusca: text('descricao_busca').notNull().default(''),
     categoriaId: text('categoria_id').notNull(),
     unidade: text('unidade', { enum: ['UN', 'KG'] }).notNull(),
     // SQLite não tem booleano: o Drizzle converte 0/1 para false/true
     controlaLote: integer('controla_lote', { mode: 'boolean' }).notNull(),
   },
-  (tabela) => [index('produtos_descricao_idx').on(tabela.descricao)],
+  (tabela) => [
+    index('produtos_descricao_idx').on(tabela.descricao),
+    index('produtos_codigo_erp_idx').on(tabela.codigoErp),
+  ],
 );
 
 export const eans = sqliteTable(
