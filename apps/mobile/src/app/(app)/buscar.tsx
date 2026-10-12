@@ -41,7 +41,7 @@ export default function TelaBusca() {
   // "Debounce": cada tecla reinicia o temporizador; só busca quando a pessoa para de digitar
   useEffect(() => {
     const temporizador = setTimeout(() => {
-      setResultados(texto.trim().length >= 2 ? buscarPorTexto(texto) : []);
+      setResultados(texto.trim().length >= 2 ? buscarComSeguranca(texto) : []);
     }, ESPERA_DIGITACAO_MS);
     return () => clearTimeout(temporizador);
   }, [texto, ultimaSincronizacao]);
@@ -95,7 +95,7 @@ export default function TelaBusca() {
     if (leitura.tipo !== 'INVALIDO') {
       abrirPorCodigo(digitado);
     } else {
-      const encontrados = buscarPorTexto(digitado);
+      const encontrados = buscarComSeguranca(digitado);
       setResultados(encontrados);
       // Parecia um código de barras (8 a 14 dígitos) e não achou nada: provavelmente leitura ruim
       if (encontrados.length === 0 && /^\d{8,14}$/.test(digitado)) {
